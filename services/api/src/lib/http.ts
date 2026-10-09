@@ -1,6 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
 import type { APIGatewayProxyEventV2, APIGatewayProxyStructuredResultV2 } from 'aws-lambda';
 import type { ApiError, ApiErrorCode } from '@textauth/shared';
+import { safeEqual } from './hash.js';
 import { getAppSecret } from './secrets.js';
 
 export type HttpEvent = APIGatewayProxyEventV2;
@@ -35,7 +35,8 @@ export function httpHandler(handler: HttpHandler): HttpHandler {
   return async (event) => {
     try {
       const { originVerifySecret } = await getAppSecret();
-      if (!safeEqual(event.headers['x-origin-verify'], originVerifySecret)) {
+      const originHeader = event.headers['x-origin-verify'];
+      if (originHeader === undefined || !safeEqual(originHeader, originVerifySecret)) {
         return apiError(403, 'invalid_request', 'Forbidden');
       }
       return await handler(event);
@@ -44,11 +45,4 @@ export function httpHandler(handler: HttpHandler): HttpHandler {
       return apiError(500, 'internal_error', 'Something went wrong');
     }
   };
-}
-
-function safeEqual(actual: string | undefined, expected: string): boolean {
-  if (actual === undefined) return false;
-  const a = Buffer.from(actual);
-  const b = Buffer.from(expected);
-  return a.length === b.length && timingSafeEqual(a, b);
 }
