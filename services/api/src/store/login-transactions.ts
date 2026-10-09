@@ -10,6 +10,12 @@ export const LOGIN_TRANSACTION_TTL_SECONDS = 15 * 60;
 export type LoginStep = 'phone' | 'otp' | 'email' | 'email-verify' | 'done';
 
 /**
+ * A one-time code sent during login: 'otp' by SMS to `phone`, 'email' by email to
+ * `pendingEmail`. Each has its own set of fields on the transaction (see CODE_FIELDS).
+ */
+export type CodeChannel = 'otp' | 'email';
+
+/**
  * One login attempt, from /oauth/authorize until the code is handed back to Auth0. The UI
  * carries its id (`tx`) on every call; everything else stays server-side.
  */
@@ -28,7 +34,7 @@ export interface LoginTransaction {
   /** Epoch seconds. Also the table's TTL attribute, but TTL deletes lazily, so always check. */
   expiresAt: number;
 
-  /** E.164 number the current code was sent to; verified once step moves past 'otp'. */
+  /** E.164 number the current SMS code was sent to; verified once step moves past 'otp'. */
   phone?: string;
   /** HMAC of the current SMS code — never the code itself. */
   otpHash?: string;
@@ -38,8 +44,64 @@ export interface LoginTransaction {
   otpAttempts?: number;
   /** Codes sent in this transaction, across any phone numbers the user tried. */
   otpSendCount?: number;
-  /** Set once the phone is verified and belongs to an existing user. */
+
+  /** Email the current email code was sent to; becomes the user's email once verified. */
+  pendingEmail?: string;
+  emailCodeHash?: string;
+  emailCodeSentAt?: number;
+  emailCodeExpiresAt?: number;
+  emailCodeAttempts?: number;
+  emailCodeSendCount?: number;
+
+  /** The user the login ended as. */
   userId?: string;
+}
+
+/** Per channel: its field names, which steps may (re)send a code, and the step it leads to. */
+const CODE_FIELDS = {
+  otp: {
+    target: 'phone',
+    hash: 'otpHash',
+    sentAt: 'otpSentAt',
+    expiresAt: 'otpExpiresAt',
+    attempts: 'otpAttempts',
+    sendCount: 'otpSendCount',
+    sendFrom: ['phone', 'otp'],
+    waitStep: 'otp',
+  },
+  email: {
+    target: 'pendingEmail',
+    hash: 'emailCodeHash',
+    sentAt: 'emailCodeSentAt',
+    expiresAt: 'emailCodeExpiresAt',
+    attempts: 'emailCodeAttempts',
+    sendCount: 'emailCodeSendCount',
+    sendFrom: ['email', 'email-verify'],
+    waitStep: 'email-verify',
+  },
+} as const satisfies Record<CodeChannel, Record<string, unknown>>;
+
+/** The steps from which a code can be (re)sent on this channel. */
+export function canSendCode(tx: LoginTransaction, channel: CodeChannel): boolean {
+  return (CODE_FIELDS[channel].sendFrom as readonly LoginStep[]).includes(tx.step);
+}
+
+/** The pending code on this channel, if the transaction is waiting for one. */
+export function pendingCode(
+  tx: LoginTransaction,
+  channel: CodeChannel,
+): { target: string; hash: string; sentAt: number; expiresAt: number; sendCount: number } | undefined {
+  const f = CODE_FIELDS[channel];
+  const target = tx[f.target];
+  const hash = tx[f.hash];
+  if (tx.step !== f.waitStep || !target || !hash) return undefined;
+  return {
+    target,
+    hash,
+    sentAt: tx[f.sentAt] ?? 0,
+    expiresAt: tx[f.expiresAt] ?? 0,
+    sendCount: tx[f.sendCount] ?? 0,
+  };
 }
 
 const key = (id: string) => ({ pk: `TX#${id}`, sk: 'TX' });
@@ -78,15 +140,17 @@ export async function getLoginTransaction(id: string): Promise<LoginTransaction 
 
 /**
  * Records a freshly generated code (before it's sent, so a crash mid-send can't leave a code
- * the server doesn't know). Only allowed while the user is still on the phone/code steps, and
- * the send limits are enforced in the same write so parallel requests can't both get through.
- * Returns false if a limit (or the step) stopped it.
+ * the server doesn't know). Only allowed from the channel's send steps, and the send limits are
+ * enforced in the same write so parallel requests can't both get through. Returns false if a
+ * limit (or the step) stopped it.
  */
-export async function recordOtpSent(
+export async function recordCodeSent(
   id: string,
-  otp: { phone: string; otpHash: string; otpExpiresAt: number },
+  channel: CodeChannel,
+  code: { target: string; hash: string; expiresAt: number },
   limits: { maxSends: number; resendAfterSeconds: number },
 ): Promise<boolean> {
+  const f = CODE_FIELDS[channel];
   const now = nowSeconds();
   try {
     await db.send(
@@ -94,19 +158,28 @@ export async function recordOtpSent(
         TableName: getConfig().tableName,
         Key: key(id),
         UpdateExpression:
-          'SET step = :otp, phone = :phone, otpHash = :hash, otpSentAt = :now, otpExpiresAt = :exp, otpAttempts = :zero ' +
-          'ADD otpSendCount :one',
+          'SET step = :wait, #target = :target, #hash = :hash, #sentAt = :now, #expiresAt = :exp, #attempts = :zero ' +
+          'ADD #sendCount :one',
         ConditionExpression:
-          'step IN (:phone_step, :otp) ' +
-          'AND (attribute_not_exists(otpSendCount) OR otpSendCount < :max_sends) ' +
-          'AND (attribute_not_exists(otpSentAt) OR otpSentAt <= :resend_cutoff)',
+          'step IN (:from0, :from1) ' +
+          'AND (attribute_not_exists(#sendCount) OR #sendCount < :max_sends) ' +
+          'AND (attribute_not_exists(#sentAt) OR #sentAt <= :resend_cutoff)',
+        ExpressionAttributeNames: {
+          '#target': f.target,
+          '#hash': f.hash,
+          '#sentAt': f.sentAt,
+          '#expiresAt': f.expiresAt,
+          '#attempts': f.attempts,
+          '#sendCount': f.sendCount,
+        },
         ExpressionAttributeValues: {
-          ':otp': 'otp',
-          ':phone_step': 'phone',
-          ':phone': otp.phone,
-          ':hash': otp.otpHash,
+          ':wait': f.waitStep,
+          ':from0': f.sendFrom[0],
+          ':from1': f.sendFrom[1],
+          ':target': code.target,
+          ':hash': code.hash,
           ':now': now,
-          ':exp': otp.otpExpiresAt,
+          ':exp': code.expiresAt,
           ':zero': 0,
           ':one': 1,
           ':max_sends': limits.maxSends,
@@ -122,18 +195,20 @@ export async function recordOtpSent(
 }
 
 /**
- * Counts one guess against the current code, atomically, so parallel requests can't get more
- * than `maxAttempts` guesses. Returns false once the limit is used up.
+ * Counts one guess against the channel's current code, atomically, so parallel requests can't
+ * get more than `maxAttempts` guesses. Returns false once the limit is used up.
  */
-export async function recordOtpAttempt(id: string, maxAttempts: number): Promise<boolean> {
+export async function recordCodeAttempt(id: string, channel: CodeChannel, maxAttempts: number): Promise<boolean> {
+  const f = CODE_FIELDS[channel];
   try {
     await db.send(
       new UpdateCommand({
         TableName: getConfig().tableName,
         Key: key(id),
-        UpdateExpression: 'ADD otpAttempts :one',
-        ConditionExpression: 'step = :otp AND otpAttempts < :max',
-        ExpressionAttributeValues: { ':one': 1, ':otp': 'otp', ':max': maxAttempts },
+        UpdateExpression: 'ADD #attempts :one',
+        ConditionExpression: 'step = :wait AND #attempts < :max',
+        ExpressionAttributeNames: { '#attempts': f.attempts },
+        ExpressionAttributeValues: { ':one': 1, ':wait': f.waitStep, ':max': maxAttempts },
       }),
     );
     return true;
@@ -144,8 +219,9 @@ export async function recordOtpAttempt(id: string, maxAttempts: number): Promise
 }
 
 /**
- * Moves the transaction from one step to the next, failing if another request already moved it
- * (e.g. the same code submitted twice).
+ * Moves the transaction from one step to the next, failing with ConditionalCheckFailedException
+ * if another request already moved it (e.g. the same code submitted twice). Pending code hashes
+ * are cleared so a used code can't be checked again.
  */
 export async function advanceLoginTransaction(
   id: string,
@@ -153,8 +229,8 @@ export async function advanceLoginTransaction(
   to: LoginStep,
   changes: Partial<Pick<LoginTransaction, 'userId'>> = {},
 ): Promise<void> {
-  const sets = ['step = :to', 'otpHash = :none'];
-  const values: Record<string, unknown> = { ':from': from, ':to': to, ':none': null };
+  const sets = ['step = :to'];
+  const values: Record<string, unknown> = { ':from': from, ':to': to };
   for (const [field, value] of Object.entries(changes)) {
     sets.push(`${field} = :${field}`);
     values[`:${field}`] = value;
@@ -163,7 +239,7 @@ export async function advanceLoginTransaction(
     new UpdateCommand({
       TableName: getConfig().tableName,
       Key: key(id),
-      UpdateExpression: `SET ${sets.join(', ')}`,
+      UpdateExpression: `SET ${sets.join(', ')} REMOVE otpHash, emailCodeHash`,
       ConditionExpression: 'step = :from',
       ExpressionAttributeValues: values,
     }),

@@ -1,19 +1,13 @@
-import { randomInt } from 'node:crypto';
 import type { OtpStartResponse } from '@textauth/shared';
-import { hmac } from '../../lib/hash.js';
 import { apiError, httpHandler, json, type HttpEvent, type HttpResult } from '../../lib/http.js';
+import { checkResend, issueCode, RESEND_AFTER_SECONDS } from '../../lib/one-time-codes.js';
 import { normalizePhone } from '../../lib/phone.js';
 import { verifyRecaptcha } from '../../lib/recaptcha.js';
 import { parseJsonBody, stringField } from '../../lib/request.js';
 import { getSmsGatewayFactory, UnsupportedCountryError, type SmsGateway } from '../../sms/index.js';
-import { getLoginTransaction, recordOtpSent } from '../../store/login-transactions.js';
+import { canSendCode, getLoginTransaction } from '../../store/login-transactions.js';
 import { consumeRateLimit } from '../../store/rate-limits.js';
-import { nowSeconds } from '../../store/db.js';
 
-export const OTP_TTL_SECONDS = 10 * 60;
-export const RESEND_AFTER_SECONDS = 30;
-/** Codes per login transaction, across all numbers tried in it. */
-export const MAX_SENDS_PER_TRANSACTION = 3;
 export const PHONE_LIMIT = { limit: 5, windowSeconds: 60 * 60 };
 /**
  * Circuit breaker against SMS pumping: a sudden flood to one country (typically premium-rate
@@ -38,7 +32,7 @@ export async function otpStart(event: HttpEvent): Promise<HttpResult> {
   }
 
   const tx = await getLoginTransaction(txId);
-  if (!tx || (tx.step !== 'phone' && tx.step !== 'otp')) {
+  if (!tx || !canSendCode(tx, 'otp')) {
     return apiError(400, 'invalid_transaction', 'This login has expired. Please start again.');
   }
 
@@ -61,12 +55,11 @@ export async function otpStart(event: HttpEvent): Promise<HttpResult> {
     throw err;
   }
 
-  const now = nowSeconds();
-  if (tx.otpSentAt !== undefined && now - tx.otpSentAt < RESEND_AFTER_SECONDS) {
-    return apiError(429, 'rate_limited', 'Please wait a moment before requesting another code.');
-  }
-  if ((tx.otpSendCount ?? 0) >= MAX_SENDS_PER_TRANSACTION) {
-    return apiError(429, 'rate_limited', 'Too many codes requested. Please start again later.');
+  switch (checkResend(tx, 'otp')) {
+    case 'cooldown':
+      return apiError(429, 'rate_limited', 'Please wait a moment before requesting another code.');
+    case 'too_many_sends':
+      return apiError(429, 'rate_limited', 'Too many codes requested. Please start again later.');
   }
   const withinLimits =
     (await consumeRateLimit({ key: `phone:${phone.e164}`, ...PHONE_LIMIT })) &&
@@ -75,17 +68,8 @@ export async function otpStart(event: HttpEvent): Promise<HttpResult> {
     return apiError(429, 'rate_limited', 'Too many codes requested. Please try again later.');
   }
 
-  const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-  const recorded = await recordOtpSent(
-    tx.id,
-    {
-      phone: phone.e164,
-      otpHash: await hmac(`otp:${tx.id}`, code),
-      otpExpiresAt: Math.min(now + OTP_TTL_SECONDS, tx.expiresAt),
-    },
-    { maxSends: MAX_SENDS_PER_TRANSACTION, resendAfterSeconds: RESEND_AFTER_SECONDS },
-  );
-  if (!recorded) {
+  const code = await issueCode(tx, 'otp', phone.e164);
+  if (!code) {
     // A parallel request for the same login won the race (or it moved past this step).
     return apiError(429, 'rate_limited', 'Please wait a moment before requesting another code.');
   }
