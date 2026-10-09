@@ -73,11 +73,14 @@ Request/response types for the `/api/*` calls are in `packages/shared/src/api-co
 - **`sub` is the identity, not the phone number.** It's a random id assigned at sign-up. The
   phone and email are attributes that can change; numbers get recycled.
 - **Phone numbers** are stored in E.164 (`+12015550123`) and are unique.
-- **Emails** are unique (case-insensitive).
+- **Emails** are unique (case-insensitive). An email that already belongs to another user is
+  refused (`email_in_use`) — the user can enter a different one or skip.
   - Entered by the user → only saved after they enter the code we email them, so
     `email_verified` is always true for a real email.
   - Skipped → `u_<10 random chars>@users.textauth.lionsportsusa.com`, `email_verified: true`.
-    Never shown to the user. That domain has a null MX record, so mail to it is refused.
+    Never shown to the user. That domain has a null MX record, so mail to it is refused. The
+    legacy system does email users; it will be changed to skip `@users.textauth.lionsportsusa.com`
+    addresses, and until then those sends bounce (accepted).
 - Verification emails come from `no-reply@lionsportsusa.com` via Resend.
 
 ## SMS gateways
@@ -127,12 +130,8 @@ hashes (`hashKey` in the app secret), never in plain text.
 | `LionSportsTextAuthApp`      | us-west-2 | DynamoDB, Lambdas, HTTP API, S3 + CloudFront, Route53 records |
 | `LionSportsTextAuthPipeline` | us-west-2 | CodePipeline: GitHub → CodeBuild (test, build, cdk deploy) |
 
-## Open questions
+## Decisions
 
-- Does the Auth0 tenant use a custom domain? If so its `/login/callback` must be added to
-  `AUTH0_CALLBACK_URLS` in `infrastructure/bin/app.ts`.
-- If a user enters an email that already belongs to another user, what should happen? (The
-  current plan is to refuse it with `email_in_use`.)
-- Does the legacy system send mail to users' addresses? Mail to synthetic addresses is refused
-  by the null MX, which shows up as bounces on the legacy system's side.
+- The Auth0 tenant has no custom domain; `https://lion-sports-booking-prod.us.auth0.com/login/callback`
+  is the only allowed redirect_uri.
 - Changing phone number or email after sign-up is out of scope for now.
