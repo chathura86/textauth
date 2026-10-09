@@ -29,15 +29,16 @@ const phoneKey = (phone: string) => ({ pk: `PHONE#${phone}`, sk: 'USER' });
 /** Emails are unique case-insensitively; the profile keeps the casing the user typed. */
 const emailKey = (email: string) => ({ pk: `EMAIL#${email.toLowerCase()}`, sk: 'USER' });
 
-export async function findUserByPhone(phone: string): Promise<User | undefined> {
-  const tableName = getConfig().tableName;
-  const { Item: link } = await db.send(new GetCommand({ TableName: tableName, Key: phoneKey(phone) }));
-  if (!link) return undefined;
-
-  const { Item } = await db.send(new GetCommand({ TableName: tableName, Key: userKey(link.userId as string) }));
+export async function findUserById(id: string): Promise<User | undefined> {
+  const { Item } = await db.send(new GetCommand({ TableName: getConfig().tableName, Key: userKey(id) }));
   if (!Item) return undefined;
   const { pk: _pk, sk: _sk, ...user } = Item;
   return user as User;
+}
+
+export async function findUserByPhone(phone: string): Promise<User | undefined> {
+  const { Item: link } = await db.send(new GetCommand({ TableName: getConfig().tableName, Key: phoneKey(phone) }));
+  return link ? findUserById(link.userId as string) : undefined;
 }
 
 export async function isEmailTaken(email: string): Promise<boolean> {
