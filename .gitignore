@@ -6,3 +6,5 @@ coverage/
 .env
 .env.*
 !.env.example
+# Public, build-time config for the login UI (no secrets).
+!apps/login-ui/.env

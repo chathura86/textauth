@@ -38,8 +38,8 @@ pnpm --filter @textauth/login-ui dev
 
    The Resend key is read from the existing `lionsports/production/resend` secret.
 
-2. **reCAPTCHA v3 keys** for `textauth.lionsportsusa.com`: put the secret key in the app secret
-   and the site key in `RECAPTCHA_SITE_KEY` in `infrastructure/bin/app.ts`.
+2. **reCAPTCHA v3 keys** for `textauth.lionsportsusa.com`: the secret key goes in the app secret,
+   the (public) site key in `apps/login-ui/.env`.
 
 3. **GitHub access**: done — the pipeline uses the `lionsports-textauth` CodeConnection (us-east-1).
 

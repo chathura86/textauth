@@ -20,10 +20,6 @@ const EMAIL_FROM = 'LionSports <no-reply@lionsportsusa.com>';
 // custom-domain callback here too if the tenant uses one.
 const AUTH0_CALLBACK_URLS = ['https://lion-sports-booking-prod.us.auth0.com/login/callback'];
 
-// reCAPTCHA v3 *site* key (public, baked into the UI build). Its secret key goes in
-// APP_SECRET_NAME.
-const RECAPTCHA_SITE_KEY = '';
-
 // Secrets created out-of-band (see README.md Prerequisites) — only imported by name here.
 const APP_SECRET_NAME = 'lionsports/production/textauth';
 const RESEND_SECRET_NAME = 'lionsports/production/resend';
@@ -74,7 +70,6 @@ new TextAuthPipelineStack(app, 'LionSportsTextAuthPipeline', {
   githubBranch: GITHUB_BRANCH,
   codeconnectionArn: CODECONNECTION_ARN,
   deployStackNames: [edgeStack.stackName, appStack.stackName],
-  recaptchaSiteKey: RECAPTCHA_SITE_KEY,
   description: 'textauth CI/CD: test, build, and cdk deploy on every push to main',
 });
 

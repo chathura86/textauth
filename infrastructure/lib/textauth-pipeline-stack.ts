@@ -12,8 +12,6 @@ export interface TextAuthPipelineStackProps extends cdk.StackProps {
   codeconnectionArn: string;
   /** Stacks the Deploy stage runs `cdk deploy` on. Never this pipeline stack itself. */
   deployStackNames: string[];
-  /** Public reCAPTCHA site key, baked into the login UI build. */
-  recaptchaSiteKey: string;
 }
 
 /**
@@ -34,9 +32,6 @@ export class TextAuthPipelineStack extends cdk.Stack {
       environment: {
         buildImage: codebuild.LinuxBuildImage.STANDARD_7_0,
         computeType: codebuild.ComputeType.MEDIUM,
-        environmentVariables: {
-          VITE_RECAPTCHA_SITE_KEY: { value: props.recaptchaSiteKey },
-        },
       },
       buildSpec: codebuild.BuildSpec.fromObject({
         version: '0.2',
