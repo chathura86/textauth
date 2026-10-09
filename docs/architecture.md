@@ -86,12 +86,20 @@ Request/response types for the `/api/*` calls are in `packages/shared/src/api-co
 ## SMS gateways
 
 `services/api/src/sms/`. `SmsGatewayFactory` picks a gateway by the phone number's country
-from a routing table (`sms/index.ts`). Each provider implements `SmsGateway`. Today there's only
-`DummySmsGateway`, which logs the message (including the code) instead of sending it.
+from a routing table (`sms/index.ts`). Each provider implements `SmsGateway`.
 
-Adding a provider: implement `SmsGateway` in `sms/gateways/`, register it in `sms/index.ts`, map
-its countries in the routing table. Once real providers exist, remove `defaultGateway` so
-unlisted countries are rejected — that makes the table a country allowlist.
+| Country | Gateway | Secret |
+| ------- | ------- | ------ |
+| Sri Lanka (+94, `LK`) | Text.lk (`sms/gateways/textlk-gateway.ts`, v3 API) | `lionsports/production/textlk` `{ apiToken, senderId }` |
+
+The supported countries are listed once, in `SMS_COUNTRIES` (`packages/shared`): the login UI's
+country picker shows only those, and the routing table must cover all of them (type-checked).
+There is no default gateway, so numbers from any other country are rejected before anything is
+sent.
+
+Adding a country: add it to `SMS_COUNTRIES`, implement `SmsGateway` in `sms/gateways/` if it
+needs a new provider, register the gateway and route the country in `sms/index.ts`, and grant
+the provider's secret to the otp-start function in `textauth-app-stack.ts`.
 
 ## Abuse protection (SMS pumping)
 

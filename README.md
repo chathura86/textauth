@@ -38,6 +38,9 @@ pnpm --filter @textauth/login-ui dev
 
    The Resend key is read from the existing `lionsports/production/resend` secret.
 
+   **Text.lk secret** `lionsports/production/textlk` (SMS for Sri Lanka): `{"apiToken":"…","senderId":"…"}`,
+   with the API token from the Text.lk dashboard and a sender ID approved by Text.lk.
+
 2. **reCAPTCHA v3 keys** for `textauth.lionsportsusa.com`: the secret key goes in the app secret,
    the (public) site key in `apps/login-ui/.env`.
 

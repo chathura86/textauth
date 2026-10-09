@@ -5,6 +5,8 @@ export interface Config {
   appSecretArn: string;
   /** The shared lionsports Resend secret ({ resendApiKey }). */
   resendSecretArn: string;
+  /** Text.lk SMS gateway secret ({ apiToken, senderId }). */
+  textLkSecretArn: string;
   /** Where the login UI and API are served, e.g. https://textauth.lionsportsusa.com */
   publicBaseUrl: string;
   syntheticEmailDomain: string;
@@ -32,6 +34,7 @@ export function getConfig(): Config {
     tableName: required('TABLE_NAME'),
     appSecretArn: required('APP_SECRET_ARN'),
     resendSecretArn: required('RESEND_SECRET_ARN'),
+    textLkSecretArn: required('TEXTLK_SECRET_ARN'),
     publicBaseUrl: required('PUBLIC_BASE_URL'),
     syntheticEmailDomain: required('SYNTHETIC_EMAIL_DOMAIN'),
     emailFrom: required('EMAIL_FROM'),

@@ -35,6 +35,8 @@ export interface TextAuthAppStackProps extends cdk.StackProps {
   allowedRedirectUris: string[];
   appSecretName: string;
   resendSecretName: string;
+  /** Text.lk SMS gateway credentials ({ apiToken, senderId }). */
+  textLkSecretName: string;
 }
 
 /**
@@ -58,6 +60,7 @@ export class TextAuthAppStack extends cdk.Stack {
 
     const appSecret = secretsmanager.Secret.fromSecretNameV2(this, 'AppSecret', props.appSecretName);
     const resendSecret = secretsmanager.Secret.fromSecretNameV2(this, 'ResendSecret', props.resendSecretName);
+    const textLkSecret = secretsmanager.Secret.fromSecretNameV2(this, 'TextLkSecret', props.textLkSecretName);
 
     // --- Data ----------------------------------------------------------------------------
     // Single table; key layout is documented in docs/architecture.md. Short-lived items
@@ -89,6 +92,7 @@ export class TextAuthAppStack extends cdk.Stack {
       TABLE_NAME: table.tableName,
       APP_SECRET_ARN: appSecret.secretArn,
       RESEND_SECRET_ARN: resendSecret.secretArn,
+      TEXTLK_SECRET_ARN: textLkSecret.secretArn,
       PUBLIC_BASE_URL: `https://${props.domainName}`,
       SYNTHETIC_EMAIL_DOMAIN: props.syntheticEmailDomain,
       EMAIL_FROM: props.emailFrom,
@@ -96,18 +100,19 @@ export class TextAuthAppStack extends cdk.Stack {
       NODE_OPTIONS: '--enable-source-maps',
     };
 
-    const routes: Array<[apigw.HttpMethod, string, string]> = [
+    // Third-party secrets are granted only to the function that uses them.
+    const routes: Array<[apigw.HttpMethod, string, string, secretsmanager.ISecret[]?]> = [
       [apigw.HttpMethod.GET, '/oauth/authorize', 'handlers/oauth/authorize.ts'],
       [apigw.HttpMethod.POST, '/oauth/token', 'handlers/oauth/token.ts'],
       [apigw.HttpMethod.GET, '/oauth/userinfo', 'handlers/oauth/userinfo.ts'],
-      [apigw.HttpMethod.POST, '/api/otp/start', 'handlers/login/otp-start.ts'],
+      [apigw.HttpMethod.POST, '/api/otp/start', 'handlers/login/otp-start.ts', [textLkSecret]],
       [apigw.HttpMethod.POST, '/api/otp/verify', 'handlers/login/otp-verify.ts'],
-      [apigw.HttpMethod.POST, '/api/email', 'handlers/login/email-submit.ts'],
+      [apigw.HttpMethod.POST, '/api/email', 'handlers/login/email-submit.ts', [resendSecret]],
       [apigw.HttpMethod.POST, '/api/email/verify', 'handlers/login/email-verify.ts'],
       [apigw.HttpMethod.POST, '/api/email/skip', 'handlers/login/email-skip.ts'],
     ];
 
-    for (const [method, routePath, entry] of routes) {
+    for (const [method, routePath, entry, secrets = []] of routes) {
       const name = routePath.split('/').filter(Boolean).map(pascalCase).join('');
       const fn = new NodejsFunction(this, `${name}Function`, {
         entry: path.join(API_SRC, entry),
@@ -126,7 +131,7 @@ export class TextAuthAppStack extends cdk.Stack {
       });
       table.grantReadWriteData(fn);
       appSecret.grantRead(fn);
-      resendSecret.grantRead(fn);
+      for (const secret of secrets) secret.grantRead(fn);
 
       api.addRoutes({
         path: routePath,
