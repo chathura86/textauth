@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@textauth/shared": "workspace:*",
+    "libphonenumber-js": "1.13.15",
     "preact": "10.29.8"
   },
   "devDependencies": {
