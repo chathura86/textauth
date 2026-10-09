@@ -14,6 +14,18 @@ export function parseJsonBody(event: HttpEvent): Record<string, unknown> | undef
   }
 }
 
+/**
+ * Parses an OAuth-style body: application/x-www-form-urlencoded (what the spec requires and
+ * Auth0 sends), with JSON accepted too. Undefined if it's neither.
+ */
+export function parseFormBody(event: HttpEvent): Record<string, unknown> | undefined {
+  const contentType = event.headers['content-type'] ?? '';
+  if (contentType.includes('application/json')) return parseJsonBody(event);
+  if (!event.body) return undefined;
+  const raw = event.isBase64Encoded ? Buffer.from(event.body, 'base64').toString('utf8') : event.body;
+  return Object.fromEntries(new URLSearchParams(raw));
+}
+
 /** A non-empty string field, trimmed, capped at `maxLength` so nobody can post megabytes. */
 export function stringField(body: Record<string, unknown>, name: string, maxLength = 256): string | undefined {
   const value = body[name];
