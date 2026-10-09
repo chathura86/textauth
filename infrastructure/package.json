@@ -1,0 +1,26 @@
+{
+  "name": "@textauth/infrastructure",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AWS CDK infrastructure for textauth (Login with Your Phone)",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "cdk": "cdk",
+    "synth": "cdk synth --profile lionsports",
+    "diff": "cdk diff --all --profile lionsports",
+    "deploy:app": "cdk deploy LionSportsTextAuthEdge LionSportsTextAuthApp --profile lionsports",
+    "deploy:pipeline": "cdk deploy LionSportsTextAuthPipeline --profile lionsports"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.273.0",
+    "constructs": "10.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "aws-cdk": "2.1145.0",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}
