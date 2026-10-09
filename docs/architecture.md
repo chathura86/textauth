@@ -99,8 +99,8 @@ unlisted countries are rejected — that makes the table a country allowlist.
 | ---------------- | ------------------------------------------------------------------------- |
 | WAF (CloudFront) | IP reputation + managed rules; per IP: 10 code sends / 5 min, 500 req / 5 min |
 | API Gateway      | stage throttle 50 rps / burst 100                                         |
-| reCAPTCHA v3     | checked server-side before any SMS is sent                                |
-| App (DynamoDB)   | per-phone and per-country send limits, resend cooldown, max code attempts |
+| reCAPTCHA v3     | checked server-side before any SMS is sent: action `otp_start`, our hostname, score ≥ 0.5 |
+| App (DynamoDB)   | per login: 3 codes, 30 s between sends, 5 guesses per code; per phone: 5 codes/hour; per country: 200 codes/hour (pumping circuit breaker) |
 | Routing table    | only listed countries can receive SMS                                     |
 
 Requests that skip CloudFront (calling execute-api directly) are refused: CloudFront adds an
