@@ -6,7 +6,7 @@ const client = new SecretsManagerClient({});
 // Cached per Lambda container. Rotating a secret means waiting out (or forcing) a cold start.
 const cache = new Map<string, Promise<unknown>>();
 
-function getJsonSecret<T>(secretId: string): Promise<T> {
+export function getJsonSecret<T>(secretId: string): Promise<T> {
   let value = cache.get(secretId);
   if (!value) {
     value = client.send(new GetSecretValueCommand({ SecretId: secretId })).then((result) => {

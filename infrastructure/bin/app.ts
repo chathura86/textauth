@@ -23,6 +23,7 @@ const AUTH0_CALLBACK_URLS = ['https://lion-sports-booking-prod.us.auth0.com/logi
 // Secrets created out-of-band (see README.md Prerequisites) — only imported by name here.
 const APP_SECRET_NAME = 'lionsports/production/textauth';
 const RESEND_SECRET_NAME = 'lionsports/production/resend';
+const TEXTLK_SECRET_NAME = 'lionsports/production/textlk';
 
 const GITHUB_OWNER = 'chathura86';
 const GITHUB_REPO = 'textauth';
@@ -60,6 +61,7 @@ const appStack = new TextAuthAppStack(app, 'LionSportsTextAuthApp', {
   allowedRedirectUris: AUTH0_CALLBACK_URLS,
   appSecretName: APP_SECRET_NAME,
   resendSecretName: RESEND_SECRET_NAME,
+  textLkSecretName: TEXTLK_SECRET_NAME,
   description: 'textauth: login UI, OAuth/login API, and user store',
 });
 
