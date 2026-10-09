@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HttpEvent } from '../../lib/http.js';
 import { verifyRecaptcha } from '../../lib/recaptcha.js';
-import { getLoginTransaction, recordOtpSent, type LoginTransaction } from '../../store/login-transactions.js';
+import { getLoginTransaction, recordCodeSent, type LoginTransaction } from '../../store/login-transactions.js';
 import { consumeRateLimit } from '../../store/rate-limits.js';
 import { otpStart } from './otp-start.js';
 
@@ -9,9 +9,10 @@ const send = vi.fn(async () => ({ gateway: 'fake', messageId: 'm1' }));
 
 vi.mock('../../lib/secrets.js', () => ({ getAppSecret: async () => ({ hashKey: 'test-key' }) }));
 vi.mock('../../lib/recaptcha.js', () => ({ verifyRecaptcha: vi.fn(async () => true) }));
-vi.mock('../../store/login-transactions.js', () => ({
+vi.mock('../../store/login-transactions.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../store/login-transactions.js')>()),
   getLoginTransaction: vi.fn(),
-  recordOtpSent: vi.fn(async () => true),
+  recordCodeSent: vi.fn(async () => true),
 }));
 vi.mock('../../store/rate-limits.js', () => ({ consumeRateLimit: vi.fn(async () => true) }));
 vi.mock('../../sms/index.js', async (importOriginal) => {
@@ -54,7 +55,7 @@ describe('POST /api/otp/start', () => {
     vi.mocked(getLoginTransaction).mockResolvedValue(tx());
     vi.mocked(verifyRecaptcha).mockResolvedValue(true);
     vi.mocked(consumeRateLimit).mockResolvedValue(true);
-    vi.mocked(recordOtpSent).mockResolvedValue(true);
+    vi.mocked(recordCodeSent).mockResolvedValue(true);
   });
 
   it('records a code and texts it to the normalised number', async () => {
@@ -63,9 +64,10 @@ describe('POST /api/otp/start', () => {
     expect(status).toBe(200);
     expect(body).toEqual({ resendAfterSeconds: 30 });
     expect(verifyRecaptcha).toHaveBeenCalledWith('token', 'otp_start');
-    expect(recordOtpSent).toHaveBeenCalledWith(
+    expect(recordCodeSent).toHaveBeenCalledWith(
       'tx1',
-      expect.objectContaining({ phone: '+12015550123', otpExpiresAt: NOW + 600 }),
+      'otp',
+      expect.objectContaining({ target: '+12015550123', expiresAt: NOW + 600 }),
       { maxSends: 3, resendAfterSeconds: 30 },
     );
     expect(send).toHaveBeenCalledWith({ to: '+12015550123', body: expect.stringMatching(/^\d{6} is your/) });
@@ -76,8 +78,8 @@ describe('POST /api/otp/start', () => {
 
     const sms = send.mock.calls[0] as unknown as [{ body: string }];
     const code = sms[0].body.slice(0, 6);
-    const recorded = vi.mocked(recordOtpSent).mock.calls[0]![1];
-    expect(recorded.otpHash).not.toContain(code);
+    const recorded = vi.mocked(recordCodeSent).mock.calls[0]![2];
+    expect(recorded.hash).not.toContain(code);
   });
 
   it('rejects a missing field', async () => {
@@ -137,7 +139,7 @@ describe('POST /api/otp/start', () => {
   });
 
   it('does not send when a parallel request already recorded a code', async () => {
-    vi.mocked(recordOtpSent).mockResolvedValue(false);
+    vi.mocked(recordCodeSent).mockResolvedValue(false);
 
     expect((await call()).status).toBe(429);
     expect(send).not.toHaveBeenCalled();

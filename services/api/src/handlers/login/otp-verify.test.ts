@@ -6,7 +6,7 @@ import type { HttpEvent } from '../../lib/http.js';
 import {
   advanceLoginTransaction,
   getLoginTransaction,
-  recordOtpAttempt,
+  recordCodeAttempt,
   type LoginTransaction,
 } from '../../store/login-transactions.js';
 import { findUserByPhone, type User } from '../../store/users.js';
@@ -16,9 +16,10 @@ vi.mock('../../lib/secrets.js', () => ({ getAppSecret: async () => ({ hashKey: '
 vi.mock('../../lib/complete-login.js', () => ({
   completeLogin: vi.fn(async () => 'https://t.auth0.com/login/callback?code=c&state=s'),
 }));
-vi.mock('../../store/login-transactions.js', () => ({
+vi.mock('../../store/login-transactions.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../store/login-transactions.js')>()),
   getLoginTransaction: vi.fn(),
-  recordOtpAttempt: vi.fn(async () => true),
+  recordCodeAttempt: vi.fn(async () => true),
   advanceLoginTransaction: vi.fn(async () => undefined),
 }));
 vi.mock('../../store/users.js', () => ({ findUserByPhone: vi.fn(async () => undefined) }));
@@ -51,7 +52,7 @@ describe('POST /api/otp/verify', () => {
     vi.clearAllMocks();
     vi.useFakeTimers({ now: NOW * 1000 });
     vi.mocked(getLoginTransaction).mockResolvedValue(await tx());
-    vi.mocked(recordOtpAttempt).mockResolvedValue(true);
+    vi.mocked(recordCodeAttempt).mockResolvedValue(true);
     vi.mocked(advanceLoginTransaction).mockResolvedValue(undefined);
     vi.mocked(findUserByPhone).mockResolvedValue(undefined);
   });
@@ -80,12 +81,12 @@ describe('POST /api/otp/verify', () => {
     const { status, body } = await call({ tx: 'tx1', code: '654321' });
 
     expect([status, body.error]).toEqual([400, 'invalid_code']);
-    expect(recordOtpAttempt).toHaveBeenCalledWith('tx1', 5);
+    expect(recordCodeAttempt).toHaveBeenCalledWith('tx1', 'otp', 5);
     expect(advanceLoginTransaction).not.toHaveBeenCalled();
   });
 
   it('stops guessing once attempts are used up, even with the right code', async () => {
-    vi.mocked(recordOtpAttempt).mockResolvedValue(false);
+    vi.mocked(recordCodeAttempt).mockResolvedValue(false);
 
     const { status, body } = await call({ tx: 'tx1', code: CODE });
 
@@ -97,7 +98,7 @@ describe('POST /api/otp/verify', () => {
     vi.mocked(getLoginTransaction).mockResolvedValue(await tx({ otpExpiresAt: NOW }));
 
     expect((await call({ tx: 'tx1', code: CODE })).body.error).toBe('invalid_code');
-    expect(recordOtpAttempt).not.toHaveBeenCalled();
+    expect(recordCodeAttempt).not.toHaveBeenCalled();
   });
 
   it('rejects a transaction that is not waiting for a code', async () => {
