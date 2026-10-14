@@ -23,7 +23,8 @@ function fetchUserProfile(accessToken, context, callback) {
   request.get(
     {
       url: 'https://textauth.lionsportsusa.com/oauth/userinfo',
-      headers: { Authorization: 'Bearer ' + accessToken },
+      // Without a User-Agent the WAF's NoUserAgent_HEADER rule would block the call.
+      headers: { Authorization: 'Bearer ' + accessToken, 'User-Agent': 'auth0-textauth' },
     },
     (err, resp, body) => {
       if (err) return callback(err);

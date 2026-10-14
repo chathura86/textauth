@@ -19,7 +19,8 @@ export interface TextAuthEdgeStackProps extends cdk.StackProps {
  * API enforces those itself.
  *
  * The managed rule groups are tuned for browser traffic and block Auth0's server-to-server calls
- * (code exchange, userinfo), so they skip those two endpoints. Both authenticate the caller
+ * (code exchange, userinfo; e.g. the profile script sends no User-Agent, which trips
+ * CommonRuleSet's NoUserAgent_HEADER), so they skip those two endpoints. Both authenticate the caller
  * themselves (client secret / bearer token) and stay under the rate limits.
  */
 export class TextAuthEdgeStack extends cdk.Stack {
