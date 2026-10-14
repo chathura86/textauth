@@ -23,7 +23,8 @@ function fetchUserProfile(accessToken, context, callback) {
   request.get(
     {
       url: 'https://textauth.lionsportsusa.com/oauth/userinfo',
-      headers: { Authorization: 'Bearer ' + accessToken },
+      // Without a User-Agent the WAF's NoUserAgent_HEADER rule would block the call.
+      headers: { Authorization: 'Bearer ' + accessToken, 'User-Agent': 'auth0-textauth' },
     },
     (err, resp, body) => {
       if (err) return callback(err);
@@ -105,7 +106,7 @@ the provider's secret to the otp-start function in `textauth-app-stack.ts`.
 
 | Layer            | What                                                                      |
 | ---------------- | ------------------------------------------------------------------------- |
-| WAF (CloudFront) | IP reputation + managed rules; per IP: 10 code sends / 5 min, 500 req / 5 min |
+| WAF (CloudFront) | IP reputation + managed rules (skipped on `/oauth/token` and `/oauth/userinfo`, which Auth0's servers call); per IP: 10 code sends / 5 min, 500 req / 5 min |
 | API Gateway      | stage throttle 50 rps / burst 100                                         |
 | reCAPTCHA v3     | checked server-side before any SMS is sent: action `otp_start`, our hostname, score ≥ 0.5 |
 | App (DynamoDB)   | per login: 3 codes, 30 s between sends, 5 guesses per code; per phone: 5 codes/hour; per country: 200 codes/hour (pumping circuit breaker) |

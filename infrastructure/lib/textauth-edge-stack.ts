@@ -17,6 +17,11 @@ export interface TextAuthEdgeStackProps extends cdk.StackProps {
  * The WAF is the first line against SMS pumping: per-IP rate limits on the endpoints that send
  * SMS/email, plus AWS managed rules. Per-phone and per-country limits need app state, so the
  * API enforces those itself.
+ *
+ * The managed rule groups are tuned for browser traffic and block Auth0's server-to-server calls
+ * (code exchange, userinfo; e.g. the profile script sends no User-Agent, which trips
+ * CommonRuleSet's NoUserAgent_HEADER), so they skip those two endpoints. Both authenticate the caller
+ * themselves (client secret / bearer token) and stay under the rate limits.
  */
 export class TextAuthEdgeStack extends cdk.Stack {
   readonly certificate: acm.ICertificate;
@@ -35,14 +40,23 @@ export class TextAuthEdgeStack extends cdk.Stack {
       validation: acm.CertificateValidation.fromDns(zone),
     });
 
+    // Everything except the endpoints Auth0's servers call.
+    const notAuth0ServerCall: wafv2.CfnWebACL.StatementProperty = {
+      notStatement: {
+        statement: {
+          orStatement: { statements: [pathStartsWith('/oauth/token'), pathStartsWith('/oauth/userinfo')] },
+        },
+      },
+    };
+
     const webAcl = new wafv2.CfnWebACL(this, 'WebAcl', {
       scope: 'CLOUDFRONT',
       defaultAction: { allow: {} },
       visibilityConfig: visibility('textauth'),
       rules: [
-        managedRule('AWSManagedRulesAmazonIpReputationList', 0),
-        managedRule('AWSManagedRulesKnownBadInputsRuleSet', 1),
-        managedRule('AWSManagedRulesCommonRuleSet', 2),
+        managedRule('AWSManagedRulesAmazonIpReputationList', 0, notAuth0ServerCall),
+        managedRule('AWSManagedRulesKnownBadInputsRuleSet', 1, notAuth0ServerCall),
+        managedRule('AWSManagedRulesCommonRuleSet', 2, notAuth0ServerCall),
         // Endpoints that cost money per call (SMS, email): tight per-IP limit.
         rateLimitRule('SendCodeRateLimit', 10, 10, {
           orStatement: {
@@ -62,12 +76,16 @@ function visibility(metricName: string): wafv2.CfnWebACL.VisibilityConfigPropert
   return { cloudWatchMetricsEnabled: true, metricName, sampledRequestsEnabled: true };
 }
 
-function managedRule(name: string, priority: number): wafv2.CfnWebACL.RuleProperty {
+function managedRule(
+  name: string,
+  priority: number,
+  scopeDownStatement?: wafv2.CfnWebACL.StatementProperty,
+): wafv2.CfnWebACL.RuleProperty {
   return {
     name,
     priority,
     overrideAction: { none: {} },
-    statement: { managedRuleGroupStatement: { vendorName: 'AWS', name } },
+    statement: { managedRuleGroupStatement: { vendorName: 'AWS', name, scopeDownStatement } },
     visibilityConfig: visibility(name),
   };
 }
