@@ -119,7 +119,7 @@ Requests that skip CloudFront (calling execute-api directly) are refused: CloudF
 
 | pk                  | sk        | What                                                        | TTL     |
 | ------------------- | --------- | ----------------------------------------------------------- | ------- |
-| `USER#<sub>`        | `PROFILE` | phone, email, emailVerified, emailSource (user/synthetic), timestamps |  |
+| `USER#<sub>`        | `PROFILE` | phone, email, emailSource (user/synthetic), timestamps; no verified flag: every stored email is verified, so `/oauth/userinfo` always returns `email_verified: true` |  |
 | `PHONE#<e164>`      | `USER`    | → sub (uniqueness)                                          |         |
 | `EMAIL#<lowercase>` | `USER`    | → sub (uniqueness)                                          |         |
 | `TX#<id>`           | `TX`      | login transaction: OAuth params, phone, hashed codes, attempts, step | 15 min |
