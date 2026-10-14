@@ -141,8 +141,8 @@ function PhoneStep({
           onChange={(e) => setCountry((e.target as HTMLSelectElement).value as typeof country)}
         >
           {COUNTRIES.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.name} (+{c.callingCode})
+            <option key={c.code} value={c.code} title={c.name} aria-label={`${c.name} (+${c.callingCode})`}>
+              {c.label}
             </option>
           ))}
         </select>
