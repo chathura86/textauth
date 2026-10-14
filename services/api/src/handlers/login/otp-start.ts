@@ -87,5 +87,5 @@ export const handler = httpHandler(otpStart);
  * autofill on our login page (and only on our login page).
  */
 function smsBody(code: string): string {
-  return `${code} is your LionSports login code. It expires in 10 minutes.\n\n@textauth.lionsportsusa.com #${code}`;
+  return `${code} is your LionSports login code. It expires in 1 minute.\n\n@textauth.lionsportsusa.com #${code}`;
 }

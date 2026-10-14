@@ -73,7 +73,9 @@ Request/response types for the `/api/*` calls are in `packages/shared/src/api-co
 
 - **`sub` is the identity, not the phone number.** It's a random id assigned at sign-up. The
   phone and email are attributes that can change; numbers get recycled.
-- **Phone numbers** are stored in E.164 (`+12015550123`) and are unique.
+- **Phone numbers** are stored in E.164 (`+12015550123`) and are unique. Whatever the user types
+  (spaces, brackets, dashes, dots, `00`/`011` or national prefixes) is normalized with
+  libphonenumber-js, using the picked country for numbers without a `+` prefix.
 - **Emails** are unique (case-insensitive). An email that already belongs to another user is
   refused (`email_in_use`) — the user can enter a different one or skip.
   - Entered by the user → only saved after they enter the code we email them, so
@@ -109,7 +111,7 @@ the provider's secret to the otp-start function in `textauth-app-stack.ts`.
 | WAF (CloudFront) | IP reputation + managed rules (skipped on `/oauth/token` and `/oauth/userinfo`, which Auth0's servers call); per IP: 10 code sends / 5 min, 500 req / 5 min |
 | API Gateway      | stage throttle 50 rps / burst 100                                         |
 | reCAPTCHA v3     | checked server-side before any SMS is sent: action `otp_start`, our hostname, score ≥ 0.5 |
-| App (DynamoDB)   | per login: 3 codes, 30 s between sends, 5 guesses per code; per phone: 5 codes/hour; per country: 200 codes/hour (pumping circuit breaker) |
+| App (DynamoDB)   | per login: 3 codes, 30 s between sends, 5 guesses per code (SMS codes expire after 60 s, email codes after 10 min); per phone: 5 codes/hour; per country: 200 codes/hour (pumping circuit breaker) |
 | Routing table    | only listed countries can receive SMS                                     |
 
 Requests that skip CloudFront (calling execute-api directly) are refused: CloudFront adds an
