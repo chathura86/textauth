@@ -1,26 +1,35 @@
 :root {
-  --bg: #f6f7f9;
+  /* Brand: #2c00ff. Buttons use it as-is; text-coloured uses (links, logo) need a lighter
+     shade on dark backgrounds to stay readable. */
+  --brand: #2c00ff;
+  --brand-hover: #2300cc;
+  --brand-ink: #2c00ff;
+  --brand-tint: color-mix(in srgb, var(--brand) 8%, transparent);
+  --brand-ring: color-mix(in srgb, var(--brand) 22%, transparent);
+  --bg: #f7f7fb;
   --card: #ffffff;
-  --text: #1a1d21;
-  --muted: #5f6670;
-  --border: #d4d8de;
-  --accent: #1f5fd1;
-  --accent-text: #ffffff;
-  --error: #b42318;
+  --text: #15142a;
+  --muted: #62617a;
+  --border: #e2e1ec;
+  --on-brand: #ffffff;
+  --error: #c4231b;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #111317;
-    --card: #1b1e24;
-    --text: #e8eaed;
-    --muted: #9aa1ab;
-    --border: #353a42;
-    --accent: #5b8def;
-    --error: #f97066;
+    --brand-ink: #9d8cff;
+    --brand-tint: color-mix(in srgb, var(--brand-ink) 14%, transparent);
+    --brand-ring: color-mix(in srgb, var(--brand-ink) 35%, transparent);
+    --bg: #0e0d18;
+    --card: #17162a;
+    --text: #ecebf5;
+    --muted: #a09fb8;
+    --border: #2d2b45;
+    --error: #ff7a70;
   }
 }
 
@@ -34,19 +43,50 @@ body {
   place-items: center;
   min-height: 100vh;
   padding: 16px;
+  background: radial-gradient(ellipse 80% 50% at 50% 0%, var(--brand-tint), transparent) var(--bg);
 }
 
 main {
   width: min(100%, 400px);
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 28px 24px;
+  border-radius: 16px;
+  padding: 32px 28px 28px;
+  box-shadow:
+    0 1px 2px rgb(21 20 42 / 4%),
+    0 12px 32px -12px rgb(21 20 42 / 12%);
+}
+
+header {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--brand-tint);
+  display: grid;
+  place-items: center;
+}
+
+.logo::before {
+  content: '';
+  width: 28px;
+  height: 28px;
+  background: var(--brand-ink);
+  mask: url('/logo.svg') center / contain no-repeat;
 }
 
 h1 {
-  font-size: 1.35rem;
-  margin: 0 0 8px;
+  font-size: 1.4rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0;
 }
 
 p {
@@ -59,35 +99,45 @@ form {
 }
 
 form > p:first-child {
-  margin: 0 0 4px;
+  margin: 0 0 8px;
   color: var(--muted);
+  text-align: center;
 }
 
 input,
 select,
 button {
   font: inherit;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 input,
 select {
   width: 100%;
-  padding: 11px 12px;
+  padding: 12px 14px;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+input::placeholder {
+  color: var(--muted);
+  opacity: 0.7;
 }
 
 input:focus,
 select:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
+  outline: none;
+  border-color: var(--brand-ink);
+  box-shadow: 0 0 0 4px var(--brand-ring);
 }
 
 .phone {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -98,16 +148,29 @@ input.code {
 }
 
 button[type='submit'] {
-  padding: 12px;
+  margin-top: 4px;
+  padding: 13px;
   border: none;
-  background: var(--accent);
-  color: var(--accent-text);
+  background: var(--brand);
+  color: var(--on-brand);
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+
+button[type='submit']:hover:not(:disabled) {
+  background: var(--brand-hover);
+}
+
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--brand-ring);
 }
 
 button:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -115,13 +178,20 @@ button.link {
   border: none;
   background: none;
   padding: 4px 0;
-  color: var(--accent);
+  color: var(--brand-ink);
+  font-weight: 500;
   cursor: pointer;
   justify-self: start;
 }
 
+button.link:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 button.link:disabled {
   color: var(--muted);
+  opacity: 1;
 }
 
 .links {
@@ -141,10 +211,15 @@ button.link:disabled {
   margin: 0;
 }
 
+main > p {
+  text-align: center;
+}
+
 .fine-print {
   font-size: 0.75rem;
   color: var(--muted);
-  margin: 4px 0 0;
+  margin: 8px 0 0;
+  text-align: center;
 }
 
 .fine-print a {
