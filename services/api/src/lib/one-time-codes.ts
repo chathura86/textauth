@@ -10,8 +10,8 @@ import {
 import { hmac, safeEqual } from './hash.js';
 import { apiError, type HttpResult } from './http.js';
 
-/** How long a code is valid (never beyond the login transaction itself). */
-export const CODE_TTL_SECONDS = 10 * 60;
+/** How long a code is valid, per channel (never beyond the login transaction itself). */
+export const CODE_TTL_SECONDS: Record<CodeChannel, number> = { otp: 60, email: 10 * 60 };
 export const RESEND_AFTER_SECONDS = 30;
 /** Codes per login transaction and channel, across all numbers/addresses tried in it. */
 export const MAX_SENDS_PER_TRANSACTION = 3;
@@ -46,7 +46,7 @@ export async function issueCode(
     {
       target,
       hash: await hashCode(tx, channel, code),
-      expiresAt: Math.min(nowSeconds() + CODE_TTL_SECONDS, tx.expiresAt),
+      expiresAt: Math.min(nowSeconds() + CODE_TTL_SECONDS[channel], tx.expiresAt),
     },
     { maxSends: MAX_SENDS_PER_TRANSACTION, resendAfterSeconds: RESEND_AFTER_SECONDS },
   );

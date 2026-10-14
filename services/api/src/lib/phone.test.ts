@@ -14,6 +14,32 @@ describe('normalizePhone', () => {
     expect(normalizePhone('+447400123456', 'US')?.country).toBe('GB');
   });
 
+  it.each([
+    '2015550123',
+    '201 555 0123',
+    '(201) 555-0123',
+    '201.555.0123',
+    '201-555-0123',
+    '1 201 555 0123',
+    '1-201-555-0123',
+    '+1-201-555-0123',
+    '+1.201.555.0123',
+    '+12015550123',
+    '011 1 201 555 0123',
+    ' (201)555 0123 ',
+    '201–555–0123',
+    '２０１５５５０１２３',
+  ])('normalizes the common format %s', (input) => {
+    expect(normalizePhone(input, 'US')?.e164).toBe('+12015550123');
+  });
+
+  it.each(['+44 7400 123456', '0044 7400 123456', '07400 123 456', '(07400) 123456'])(
+    'normalizes the common format %s',
+    (input) => {
+      expect(normalizePhone(input, 'GB')?.e164).toBe('+447400123456');
+    },
+  );
+
   it.each(['12345', 'not a number', '+1 000 000 0000'])('rejects %s', (input) => {
     expect(normalizePhone(input, 'US')).toBeUndefined();
   });

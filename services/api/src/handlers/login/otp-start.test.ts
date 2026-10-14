@@ -67,7 +67,7 @@ describe('POST /api/otp/start', () => {
     expect(recordCodeSent).toHaveBeenCalledWith(
       'tx1',
       'otp',
-      expect.objectContaining({ target: '+12015550123', expiresAt: NOW + 600 }),
+      expect.objectContaining({ target: '+12015550123', expiresAt: NOW + 60 }),
       { maxSends: 3, resendAfterSeconds: 30 },
     );
     expect(send).toHaveBeenCalledWith({ to: '+12015550123', body: expect.stringMatching(/^\d{6} is your/) });
