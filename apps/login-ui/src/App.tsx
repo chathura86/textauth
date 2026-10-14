@@ -45,7 +45,10 @@ export function App() {
 
   return (
     <main>
-      <h1>Log in with your phone</h1>
+      <header>
+        <span class="logo" aria-hidden="true" />
+        <h1>Log in with your phone</h1>
+      </header>
       {screen.step === 'phone' && (
         <PhoneStep
           tx={tx!}
