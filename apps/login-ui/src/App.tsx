@@ -1,6 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { NextStep } from '@textauth/shared';
+import { EMAIL_RESEND_AFTER_SECONDS, type NextStep } from '@textauth/shared';
 import { api, ApiRequestError } from './api';
 import { COUNTRIES, guessCountry } from './countries';
 import { loadRecaptcha, recaptchaToken } from './recaptcha';
@@ -83,11 +83,11 @@ export function App() {
         <CodeStep
           key={`email:${screen.email}`}
           intro={`We emailed a 6-digit code to ${screen.email}.`}
-          resendAfterSeconds={30}
+          resendAfterSeconds={EMAIL_RESEND_AFTER_SECONDS}
           onVerify={(code) => api.verifyEmail({ tx: tx!, code })}
           onResend={async () => {
             await api.submitEmail({ tx: tx!, email: screen.email });
-            return 30;
+            return EMAIL_RESEND_AFTER_SECONDS;
           }}
           onDone={goTo}
           onError={onError}

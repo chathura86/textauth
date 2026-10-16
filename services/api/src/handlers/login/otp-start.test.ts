@@ -68,7 +68,7 @@ describe('POST /api/otp/start', () => {
       'tx1',
       'otp',
       expect.objectContaining({ target: '+12015550123', expiresAt: NOW + 60 }),
-      { maxSends: 3, resendAfterSeconds: 60 },
+      { maxSends: 3, resendAfterSeconds: { sameTarget: 60, newTarget: 60 } },
     );
     expect(send).toHaveBeenCalledWith({
       to: '+12015550123',

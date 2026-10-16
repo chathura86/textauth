@@ -55,7 +55,7 @@ export async function otpStart(event: HttpEvent): Promise<HttpResult> {
     throw err;
   }
 
-  switch (checkResend(tx, 'otp')) {
+  switch (checkResend(tx, 'otp', phone.e164)) {
     case 'cooldown':
       return apiError(429, 'rate_limited', 'Please wait a moment before requesting another code.');
     case 'too_many_sends':
@@ -77,7 +77,7 @@ export async function otpStart(event: HttpEvent): Promise<HttpResult> {
   const result = await gateway.send({ to: phone.e164, body: smsBody(code) });
   console.log(JSON.stringify({ msg: 'OTP sent', tx: tx.id, country: phone.country, ...result }));
 
-  return json(200, { resendAfterSeconds: RESEND_AFTER_SECONDS.otp } satisfies OtpStartResponse);
+  return json(200, { resendAfterSeconds: RESEND_AFTER_SECONDS.otp.sameTarget } satisfies OtpStartResponse);
 }
 
 export const handler = httpHandler(otpStart);

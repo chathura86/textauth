@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto';
+import { EMAIL_RESEND_AFTER_SECONDS } from '@textauth/shared';
 import { nowSeconds } from '../store/db.js';
 import {
   pendingCode,
@@ -6,14 +7,22 @@ import {
   recordCodeSent,
   type CodeChannel,
   type LoginTransaction,
+  type ResendWait,
 } from '../store/login-transactions.js';
 import { hmac, safeEqual } from './hash.js';
 import { apiError, type HttpResult } from './http.js';
 
 /** How long a code is valid, per channel (never beyond the login transaction itself). */
 export const CODE_TTL_SECONDS: Record<CodeChannel, number> = { otp: 60, email: 10 * 60 };
-/** Wait before another code can be sent, per channel. An SMS code can't be replaced while it's valid. */
-export const RESEND_AFTER_SECONDS: Record<CodeChannel, number> = { otp: 60, email: 30 };
+/**
+ * Wait before another code can be sent, per channel: to the same target, or to a different one
+ * (e.g. fixing a mistyped address). An SMS code can't be replaced while it's valid; email gets
+ * longer because some mail is slow to arrive.
+ */
+export const RESEND_AFTER_SECONDS: Record<CodeChannel, ResendWait> = {
+  otp: { sameTarget: 60, newTarget: 60 },
+  email: { sameTarget: EMAIL_RESEND_AFTER_SECONDS, newTarget: 30 },
+};
 /** Codes per login transaction and channel, across all numbers/addresses tried in it. */
 export const MAX_SENDS_PER_TRANSACTION = 3;
 /** Guesses per code. 5 guesses at a 6-digit code is a 1 in 200,000 chance. */
@@ -22,10 +31,13 @@ export const MAX_CODE_ATTEMPTS = 5;
 export type ResendCheck = 'ok' | 'cooldown' | 'too_many_sends';
 
 /** Cheap pre-check for a friendly error; recordCodeSent enforces the same limits atomically. */
-export function checkResend(tx: LoginTransaction, channel: CodeChannel): ResendCheck {
+export function checkResend(tx: LoginTransaction, channel: CodeChannel, target: string): ResendCheck {
   const sentAt = channel === 'otp' ? tx.otpSentAt : tx.emailCodeSentAt;
   const sendCount = channel === 'otp' ? tx.otpSendCount : tx.emailCodeSendCount;
-  if (sentAt !== undefined && nowSeconds() - sentAt < RESEND_AFTER_SECONDS[channel]) return 'cooldown';
+  const lastTarget = channel === 'otp' ? tx.phone : tx.pendingEmail;
+  const wait = RESEND_AFTER_SECONDS[channel];
+  const waitSeconds = lastTarget?.toLowerCase() === target.toLowerCase() ? wait.sameTarget : wait.newTarget;
+  if (sentAt !== undefined && nowSeconds() - sentAt < waitSeconds) return 'cooldown';
   if ((sendCount ?? 0) >= MAX_SENDS_PER_TRANSACTION) return 'too_many_sends';
   return 'ok';
 }
