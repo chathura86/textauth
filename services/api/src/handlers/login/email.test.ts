@@ -137,9 +137,16 @@ describe('POST /api/email', () => {
   });
 
   it('enforces the resend cooldown', async () => {
-    vi.mocked(getLoginTransaction).mockResolvedValue(await waitingForEmailCode({ emailCodeSentAt: NOW - 5 }));
+    vi.mocked(getLoginTransaction).mockResolvedValue(await waitingForEmailCode({ emailCodeSentAt: NOW - 299 }));
 
     expect((await call(emailSubmit, { tx: 'tx1', email: 'jane@example.com' })).status).toBe(429);
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('enforces a shorter cooldown when changing the address', async () => {
+    vi.mocked(getLoginTransaction).mockResolvedValue(await waitingForEmailCode({ emailCodeSentAt: NOW - 29 }));
+
+    expect((await call(emailSubmit, { tx: 'tx1', email: 'other@example.com' })).status).toBe(429);
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });

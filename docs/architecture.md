@@ -111,7 +111,7 @@ the provider's secret to the otp-start function in `textauth-app-stack.ts`.
 | WAF (CloudFront) | IP reputation + managed rules (skipped on `/oauth/token` and `/oauth/userinfo`, which Auth0's servers call); per IP: 10 code sends / 5 min, 500 req / 5 min |
 | API Gateway      | stage throttle 50 rps / burst 100                                         |
 | reCAPTCHA v3     | checked server-side before any SMS is sent: action `otp_start`, our hostname, score ≥ 0.5 |
-| App (DynamoDB)   | per login: 3 codes, 30 s between sends, 5 guesses per code (SMS codes expire after 60 s, email codes after 10 min); per phone: 5 codes/hour; per country: 200 codes/hour (pumping circuit breaker) |
+| App (DynamoDB)   | per login: 3 codes, 60 s between SMS sends, 5 min before resending an email code to the same address (email can be slow to arrive) but 30 s to switch to a different address, 5 guesses per code (SMS codes expire after 60 s, email codes after 10 min); per phone: 5 codes/hour; per country: 200 codes/hour (pumping circuit breaker) |
 | Routing table    | only listed countries can receive SMS                                     |
 
 Requests that skip CloudFront (calling execute-api directly) are refused: CloudFront adds an

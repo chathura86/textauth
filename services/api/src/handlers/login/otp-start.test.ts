@@ -62,22 +62,25 @@ describe('POST /api/otp/start', () => {
     const { status, body } = await call({ ...valid, phone: '(201) 555-0123', country: 'US' });
 
     expect(status).toBe(200);
-    expect(body).toEqual({ resendAfterSeconds: 30 });
+    expect(body).toEqual({ resendAfterSeconds: 60 });
     expect(verifyRecaptcha).toHaveBeenCalledWith('token', 'otp_start');
     expect(recordCodeSent).toHaveBeenCalledWith(
       'tx1',
       'otp',
       expect.objectContaining({ target: '+12015550123', expiresAt: NOW + 60 }),
-      { maxSends: 3, resendAfterSeconds: 30 },
+      { maxSends: 3, resendAfterSeconds: { sameTarget: 60, newTarget: 60 } },
     );
-    expect(send).toHaveBeenCalledWith({ to: '+12015550123', body: expect.stringMatching(/^\d{6} is your/) });
+    expect(send).toHaveBeenCalledWith({
+      to: '+12015550123',
+      body: expect.stringMatching(/^Your verification code is \d{6}\./),
+    });
   });
 
   it('stores only a hash of the code', async () => {
     await call();
 
     const sms = send.mock.calls[0] as unknown as [{ body: string }];
-    const code = sms[0].body.slice(0, 6);
+    const code = /\d{6}/.exec(sms[0].body)![0];
     const recorded = vi.mocked(recordCodeSent).mock.calls[0]![2];
     expect(recorded.hash).not.toContain(code);
   });
@@ -115,7 +118,7 @@ describe('POST /api/otp/start', () => {
   });
 
   it('enforces the resend cooldown', async () => {
-    vi.mocked(getLoginTransaction).mockResolvedValue(tx({ step: 'otp', otpSentAt: NOW - 10, otpSendCount: 1 }));
+    vi.mocked(getLoginTransaction).mockResolvedValue(tx({ step: 'otp', otpSentAt: NOW - 59, otpSendCount: 1 }));
 
     const { status, body } = await call();
     expect([status, body.error]).toEqual([429, 'rate_limited']);
@@ -123,7 +126,7 @@ describe('POST /api/otp/start', () => {
   });
 
   it('caps codes per transaction', async () => {
-    vi.mocked(getLoginTransaction).mockResolvedValue(tx({ step: 'otp', otpSentAt: NOW - 60, otpSendCount: 3 }));
+    vi.mocked(getLoginTransaction).mockResolvedValue(tx({ step: 'otp', otpSentAt: NOW - 120, otpSendCount: 3 }));
 
     expect((await call()).status).toBe(429);
     expect(send).not.toHaveBeenCalled();

@@ -25,6 +25,9 @@ export interface OtpVerifyRequest {
   code: string;
 }
 
+/** Seconds before the UI may offer "resend code" for an email code. Long, as some mail is slow. */
+export const EMAIL_RESEND_AFTER_SECONDS = 5 * 60;
+
 export interface EmailSubmitRequest {
   tx: string;
   email: string;

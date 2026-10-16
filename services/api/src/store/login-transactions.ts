@@ -57,6 +57,12 @@ export interface LoginTransaction {
   userId?: string;
 }
 
+/** Seconds before another code may be sent: to the same target, or to a different one. */
+export interface ResendWait {
+  sameTarget: number;
+  newTarget: number;
+}
+
 /** Per channel: its field names, which steps may (re)send a code, and the step it leads to. */
 const CODE_FIELDS = {
   otp: {
@@ -148,7 +154,7 @@ export async function recordCodeSent(
   id: string,
   channel: CodeChannel,
   code: { target: string; hash: string; expiresAt: number },
-  limits: { maxSends: number; resendAfterSeconds: number },
+  limits: { maxSends: number; resendAfterSeconds: ResendWait },
 ): Promise<boolean> {
   const f = CODE_FIELDS[channel];
   const now = nowSeconds();
@@ -163,7 +169,8 @@ export async function recordCodeSent(
         ConditionExpression:
           'step IN (:from0, :from1) ' +
           'AND (attribute_not_exists(#sendCount) OR #sendCount < :max_sends) ' +
-          'AND (attribute_not_exists(#sentAt) OR #sentAt <= :resend_cutoff)',
+          'AND (attribute_not_exists(#sentAt) OR #sentAt <= :same_target_cutoff ' +
+          'OR (#target <> :target AND #sentAt <= :new_target_cutoff))',
         ExpressionAttributeNames: {
           '#target': f.target,
           '#hash': f.hash,
@@ -183,7 +190,8 @@ export async function recordCodeSent(
           ':zero': 0,
           ':one': 1,
           ':max_sends': limits.maxSends,
-          ':resend_cutoff': now - limits.resendAfterSeconds,
+          ':same_target_cutoff': now - limits.resendAfterSeconds.sameTarget,
+          ':new_target_cutoff': now - limits.resendAfterSeconds.newTarget,
         },
       }),
     );

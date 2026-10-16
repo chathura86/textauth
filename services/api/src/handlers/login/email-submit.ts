@@ -40,7 +40,7 @@ export async function emailSubmit(event: HttpEvent): Promise<HttpResult> {
     return apiError(409, 'email_in_use', 'This email is already used by another account. Use a different one, or skip.');
   }
 
-  switch (checkResend(tx, 'email')) {
+  switch (checkResend(tx, 'email', email)) {
     case 'cooldown':
       return apiError(429, 'rate_limited', 'Please wait a moment before requesting another code.');
     case 'too_many_sends':
