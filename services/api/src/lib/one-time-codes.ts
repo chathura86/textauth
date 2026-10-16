@@ -12,7 +12,8 @@ import { apiError, type HttpResult } from './http.js';
 
 /** How long a code is valid, per channel (never beyond the login transaction itself). */
 export const CODE_TTL_SECONDS: Record<CodeChannel, number> = { otp: 60, email: 10 * 60 };
-export const RESEND_AFTER_SECONDS = 30;
+/** Wait before another code can be sent, per channel. An SMS code can't be replaced while it's valid. */
+export const RESEND_AFTER_SECONDS: Record<CodeChannel, number> = { otp: 60, email: 30 };
 /** Codes per login transaction and channel, across all numbers/addresses tried in it. */
 export const MAX_SENDS_PER_TRANSACTION = 3;
 /** Guesses per code. 5 guesses at a 6-digit code is a 1 in 200,000 chance. */
@@ -24,7 +25,7 @@ export type ResendCheck = 'ok' | 'cooldown' | 'too_many_sends';
 export function checkResend(tx: LoginTransaction, channel: CodeChannel): ResendCheck {
   const sentAt = channel === 'otp' ? tx.otpSentAt : tx.emailCodeSentAt;
   const sendCount = channel === 'otp' ? tx.otpSendCount : tx.emailCodeSendCount;
-  if (sentAt !== undefined && nowSeconds() - sentAt < RESEND_AFTER_SECONDS) return 'cooldown';
+  if (sentAt !== undefined && nowSeconds() - sentAt < RESEND_AFTER_SECONDS[channel]) return 'cooldown';
   if ((sendCount ?? 0) >= MAX_SENDS_PER_TRANSACTION) return 'too_many_sends';
   return 'ok';
 }
@@ -48,7 +49,7 @@ export async function issueCode(
       hash: await hashCode(tx, channel, code),
       expiresAt: Math.min(nowSeconds() + CODE_TTL_SECONDS[channel], tx.expiresAt),
     },
-    { maxSends: MAX_SENDS_PER_TRANSACTION, resendAfterSeconds: RESEND_AFTER_SECONDS },
+    { maxSends: MAX_SENDS_PER_TRANSACTION, resendAfterSeconds: RESEND_AFTER_SECONDS[channel] },
   );
   return recorded ? code : undefined;
 }

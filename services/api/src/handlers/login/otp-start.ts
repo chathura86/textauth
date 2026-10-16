@@ -77,15 +77,11 @@ export async function otpStart(event: HttpEvent): Promise<HttpResult> {
   const result = await gateway.send({ to: phone.e164, body: smsBody(code) });
   console.log(JSON.stringify({ msg: 'OTP sent', tx: tx.id, country: phone.country, ...result }));
 
-  return json(200, { resendAfterSeconds: RESEND_AFTER_SECONDS } satisfies OtpStartResponse);
+  return json(200, { resendAfterSeconds: RESEND_AFTER_SECONDS.otp } satisfies OtpStartResponse);
 }
 
 export const handler = httpHandler(otpStart);
 
-/**
- * The last line is the WebOTP / iOS one-time-code format, which lets phones offer the code for
- * autofill on our login page (and only on our login page).
- */
 function smsBody(code: string): string {
-  return `${code} is your LionSports login code. It expires in 1 minute.\n\n@textauth.lionsportsusa.com #${code}`;
+  return `Your verification code is ${code}. Do not share it with anyone. Expires in 1 minute.`;
 }
